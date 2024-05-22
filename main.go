@@ -1,40 +1,39 @@
 package main
 
 import (
-	"goFactory/controllers"
-	"goFactory/handlers"
-	"goFactory/models"
-	"os"
+	"flag"
 
-	"github.com/gofiber/fiber/v2"
+	"gitfactory/controllers"
+	"gitfactory/database"
+	"log"
+	"net/http"
+
+	"gitfactory/server"
 )
 
+func init() {
+	flag.StringVar(&server.DefaultConfig.AuthPassEnvVar, "auth_pass_env_var", server.DefaultConfig.AuthPassEnvVar, "set an env var to provide the basic auth pass as")
+	flag.StringVar(&server.DefaultConfig.AuthUserEnvVar, "auth_user_env_var", server.DefaultConfig.AuthUserEnvVar, "set an env var to provide the basic auth user as")
+	flag.StringVar(&server.DefaultConfig.DefaultEnv, "default_env", server.DefaultConfig.DefaultEnv, "set the default env")
+	flag.StringVar(&server.DefaultConfig.ProjectRoot, "project_root", server.DefaultConfig.ProjectRoot, "set project root")
+	flag.StringVar(&server.DefaultConfig.GitBinPath, "git_bin_path", server.DefaultConfig.GitBinPath, "set git bin path")
+	flag.StringVar(&server.DefaultAddress, "server_address", server.DefaultAddress, "set server address")
+	flag.StringVar(&server.DefaultConfig.RoutePrefix, "route_prefix", server.DefaultConfig.RoutePrefix, "prepend a regex prefix to each git-http-backend route")
+}
+
 func main() {
-	// Initialize database
-	db := models.InitDB()
+	flag.Parse()
 
-	// Create repos directory if not exists
-	if _, err := os.Stat("repos"); os.IsNotExist(err) {
-		os.Mkdir("repos", 0755)
-	}
+	database.ConnectDatabase()
 
-	// Initialize Fiber
-	app := fiber.New()
+	http.HandleFunc("/register", controllers.Register)
+	http.HandleFunc("/login", controllers.Login)
+	http.HandleFunc("/welcome", controllers.Welcome)
+	http.HandleFunc("/create_repo", controllers.CreateRepository)
 
-	// Setup routes
-	app.Delete("/repos/:username/:repo", handlers.DeleteRepositoryHandler)
-	app.Post("/users", handlers.CreateUserHandler(db))
-	app.Post("/repos/init", handlers.InitRepositoryHandler)
-	app.Get("/repos", handlers.GetRepoHandler(db))
+	http.Handle("/", controllers.BasicAuth(http.HandlerFunc(server.Handler())))
 
-	// Basic authentication middleware with database
-	auth := controllers.BasicAuthMiddleware(db)
-
-	// Git HTTP backend with authentication
-	app.All("/repos/:username/:repo/info/refs", auth, handlers.GitHTTPHandler)
-
-	// Start server
-	if err := app.Listen(":3000"); err != nil {
-		panic(err)
+	if err := http.ListenAndServe(server.DefaultAddress, nil); err != nil {
+		log.Fatal("ListenAndServe: ", err)
 	}
 }
