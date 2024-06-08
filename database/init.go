@@ -10,13 +10,16 @@ import (
 )
 
 type User struct {
-	ID        uint   `gorm:"primaryKey"`
-	Username  string `gorm:"unique;not null"`
-	Email     string `gorm:"not null"`
-	Password  string `gorm:"not null"`
-	IsAdmin   bool   `gorm:"not null;default:false"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID         uint   `gorm:"primaryKey"`
+	Username   string `gorm:"unique;not null"`
+	Firstname  string
+	Lastname   string
+	Avatarpath string
+	Email      string `gorm:"not null"`
+	Password   string `gorm:"not null"`
+	IsAdmin    bool   `gorm:"not null;default:false"`
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 // Repository модель репозитория
@@ -27,6 +30,7 @@ type Repository struct {
 	OwnerID   uint   `gorm:"not null"`
 	Owner     User   `gorm:"foreignKey:OwnerID"`
 	Path      string `gorm:"not null"`
+	IsPublic  bool   `gorm:"not null"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

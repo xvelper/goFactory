@@ -43,7 +43,7 @@ type HandlerReq struct {
 }
 
 var (
-	DefaultAddress = ":8080"
+	DefaultAddress = ":8000"
 
 	DefaultConfig = Config{
 		AuthPassEnvVar: "",
@@ -145,13 +145,13 @@ func serviceRpc(hr HandlerReq) {
 	args := []string{rpc, "--stateless-rpc", dir}
 	cmd := exec.Command(DefaultConfig.GitBinPath, args...)
 	version := r.Header.Get("Git-Protocol")
-	
+
 	cmd.Dir = dir
 	cmd.Env = env
 	if len(version) != 0 {
 		cmd.Env = append(env, fmt.Sprintf("GIT_PROTOCOL=%s", version))
 	}
-	
+
 	DefaultConfig.CommandFunc(cmd)
 
 	in, err := cmd.StdinPipe()

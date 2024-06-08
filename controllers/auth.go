@@ -14,21 +14,15 @@ import (
 	"github.com/dgrijalva/jwt-go"
 )
 
-var jwtKey = []byte("Hw?CF5Z=D#rl;3djrxKDAnE35)HOD") // Измените на ваш секретный ключ
-
 type Credentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Email    string `json:"email"`
 }
 
-type Claims struct {
-	Username string `json:"username"`
-	jwt.StandardClaims
-}
-
 type RegisterRequest struct {
 	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 	IsAdmin  bool   `json:"is_admin"`
 }
@@ -49,6 +43,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 
 	user := database.User{
 		Username: req.Username,
+		Email:    req.Email,
 		Password: hashedPassword,
 		IsAdmin:  req.IsAdmin,
 	}
@@ -179,20 +174,66 @@ func BasicAuth(next http.Handler) http.Handler {
 		}
 		urlUsername, urlRepoName := parts[0], parts[1]
 
-		// Проверяем, соответствует ли имя пользователя в URL имени аутентифицированного пользователя или является ли пользователь админом
-		if dbUser.Username != urlUsername && !dbUser.IsAdmin {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		// Поиск репозитория по имени и владельцу
+		// Проверяем, является ли репозиторий публичным
 		var repo database.Repository
 		result = database.DB.Where("name = ? AND owner_id = ?", urlRepoName, dbUser.ID).First(&repo)
 		if result.Error != nil {
+			// Если репозиторий не найден, проверяем публичные репозитории
+			result = database.DB.Where("name = ? AND is_public = ?", urlRepoName, true).First(&repo)
+			if result.Error != nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
+
+		// Проверяем, соответствует ли имя пользователя в URL имени аутентифицированного пользователя или является ли пользователь админом или репозиторий публичный
+		if dbUser.Username != urlUsername && !dbUser.IsAdmin && !repo.IsPublic {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+type Claims struct {
+	Username string `json:"username"`
+	jwt.StandardClaims
+}
+
+var jwtKey = []byte("Hw?CF5Z=D#rl;3djrxKDAnE35)HOD")
+
+func authorizeRequest(w http.ResponseWriter, r *http.Request) (*Claims, error) {
+	cookie, err := r.Cookie("token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			http.Error(w, "No token provided", http.StatusUnauthorized)
+			return nil, err
+		}
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return nil, err
+	}
+
+	tokenStr := cookie.Value
+	claims := &Claims{}
+
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return nil, err
+		}
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return nil, err
+	}
+
+	if !token.Valid {
+		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		return nil, err
+	}
+
+	return claims, nil
 }

@@ -2,13 +2,15 @@ package main
 
 import (
 	"flag"
+	"log"
+	"net/http"
+	"os"
 
 	"gitfactory/controllers"
 	"gitfactory/database"
-	"log"
-	"net/http"
-
 	"gitfactory/server"
+
+	"github.com/gorilla/handlers"
 )
 
 func init() {
@@ -26,14 +28,31 @@ func main() {
 
 	database.ConnectDatabase()
 
-	http.HandleFunc("/register", controllers.Register)
-	http.HandleFunc("/login", controllers.Login)
-	http.HandleFunc("/welcome", controllers.Welcome)
-	http.HandleFunc("/create_repo", controllers.CreateRepository)
+	mux := http.NewServeMux()
 
-	http.Handle("/", controllers.BasicAuth(http.HandlerFunc(server.Handler())))
+	mux.HandleFunc("/api/v1/register", controllers.Register)
+	mux.HandleFunc("/api/v1/login", controllers.Login)
+	mux.HandleFunc("/api/v1/welcome", controllers.Welcome)
+	mux.HandleFunc("/api/v1/create_repo", controllers.CreateRepository)
+	mux.HandleFunc("/api/v1/delete_repo", controllers.DeleteRepository)
+	mux.HandleFunc("/api/v1/get_commits", controllers.GetRepositoryCommits)
+	mux.HandleFunc("/api/v1/public_repos", controllers.GetPublicRepositories)
+	mux.HandleFunc("/api/v1/user_repos", controllers.GetUserRepositories)
+	mux.HandleFunc("/api/v1/user_details_jwt", controllers.GetUserDetailsJWT)
+	mux.HandleFunc("/api/v1/user_details", controllers.GetUserDetails)
+	mux.Handle("/", controllers.BasicAuth(http.HandlerFunc(server.Handler())))
 
-	if err := http.ListenAndServe(server.DefaultAddress, nil); err != nil {
-		log.Fatal("ListenAndServe: ", err)
+	// Настройка CORS
+	originsOk := handlers.AllowedOrigins([]string{"http://localhost:8080"})
+	headersOk := handlers.AllowedHeaders([]string{"Authorization", "Content-Type"})
+	methodsOk := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "OPTIONS", "DELETE"})
+	credentialsOk := handlers.AllowCredentials()
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8000"
 	}
+
+	log.Printf("Server listening on port %s", port)
+	log.Fatal(http.ListenAndServe(":"+port, handlers.CORS(originsOk, headersOk, methodsOk, credentialsOk)(mux)))
 }
