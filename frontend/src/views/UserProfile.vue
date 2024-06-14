@@ -1,53 +1,27 @@
 <template>
   <div class="container mt-5">
-
-    <div class="d-flex">
-      <div class="col-md-4 text-center">
-        <img :src="avatarUrl" class="rounded-circle avatar mb-3" alt="User Avatar" />
-
-        <p>{{ username }}</p>
+    <h2>Профиль пользователя</h2>
+    <form @submit.prevent="updateProfile">
+      <div class="mb-3">
+        <label for="firstName" class="form-label">Имя</label>
+        <input type="text" class="form-control" id="firstName" v-model="profile.firstName" :disabled="!isEditing">
       </div>
-      <div class="row">
-
-        <div class="p-2 flex-grow-1"><h4>Данные пользователя</h4></div>
-        <div class="row">
-          <div class="d-flex">
-          <div class="row">
-            <h5>Имя</h5>
-            <div class="d-flex">
-              <p>{{ username }}</p>
-              <button type="button" class="btn btn-secondary btn-sm">Ред.</button>
-            </div>
-          </div>
-          <div class="row">
-            <h5>Фамилия</h5>
-            <div class="d-flex">
-              <div class="input-group mb-3">
-                <input type="text" class="form-control" aria-label="Фамилия" aria-describedby="inputGroup-sizing-default">
-              </div>
-              <button type="button" class="btn btn-secondary btn-sm">Ред.</button>
-            </div>
-          </div>
-        </div>
-        <div class="d-flex">
-          <div class="row">
-            <h5>Имя</h5>
-            <div class="d-flex">
-              <p>{{ username }}</p>
-              <button type="button" class="btn btn-secondary btn-sm">Ред.</button>
-            </div>
-          </div>
-          <div class="row">
-            <h5>Фамилия</h5>
-            <div class="d-flex">
-              <p>{{ username }}</p>
-              <button type="button" class="btn btn-secondary btn-sm">Ред.</button>
-            </div>
-          </div>
-        </div>
-        </div>
+      <div class="mb-3">
+        <label for="lastName" class="form-label">Фамилия</label>
+        <input type="text" class="form-control" id="lastName" v-model="profile.lastName" :disabled="!isEditing">
       </div>
-    </div>
+      <div class="mb-3">
+        <label for="email" class="form-label">Почта</label>
+        <input type="email" class="form-control" id="email" v-model="profile.email" :disabled="!isEditing">
+      </div>
+      <div class="mb-3">
+        <label for="password" class="form-label">Пароль</label>
+        <input type="password" class="form-control" id="password" v-model="profile.password" :disabled="!isEditing">
+      </div>
+      <button type="button" class="btn btn-primary" v-if="!isEditing" @click="enableEditing">Редактировать</button>
+      <button type="submit" class="btn btn-success" v-if="isEditing">Сохранить</button>
+      <button type="button" class="btn btn-secondary" v-if="isEditing" @click="cancelEditing">Отмена</button>
+    </form>
   </div>
 </template>
 
@@ -58,107 +32,63 @@ export default {
   name: 'UserProfile',
   data() {
     return {
-      avatarUrl: 'https://via.placeholder.com/150',
-      fullName: '',
-      username: '',
-      popularRepos: [],
+      isEditing: false,
+      profile: {
+        firstName: '',
+        lastName: '',
+        email: '',
+        password: ''
+      }
     };
   },
   methods: {
-    async fetchUserDetails() {
+    enableEditing() {
+      this.isEditing = true;
+    },
+    cancelEditing() {
+      this.isEditing = false;
+      this.fetchProfile();
+    },
+    async fetchProfile() {
       try {
         const token = localStorage.getItem('token');
-        console.log('Fetching user details with token:', token);
-        const response = await axios.get('http://localhost:8000/api/v1/user_details', {
+        const response = await axios.get('https://api.xvelper.ru/api/v1/user_profile', {
           headers: {
-            Authorization: `Bearer ${token}`,
+            'Authorization': `Bearer ${token}`
           },
+          withCredentials: true
         });
-        console.log('User details response:', response.data);
-        this.fullName = response.data.username;
-        this.username = response.data.username;
+        this.profile.firstName = response.data.firstName;
+        this.profile.lastName = response.data.lastName;
+        this.profile.email = response.data.email;
       } catch (error) {
-        console.error('Error fetching user details', error);
+        console.error('Error fetching profile:', error);
       }
     },
-    async fetchPopularRepos() {
+    async updateProfile() {
       try {
         const token = localStorage.getItem('token');
-        console.log('Fetching popular repos with token:', token);
-        const response = await axios.get('http://localhost:8000/api/v1/user_repos', {
+        const response = await axios.post('https://api.xvelper.ru/api/v1/update_profile', this.profile, {
           headers: {
-            Authorization: `Bearer ${token}`,
+            'Authorization': `Bearer ${token}`
           },
+          withCredentials: true
         });
-        console.log('Popular repos response:', response.data);
-        this.popularRepos = response.data;
+        console.log('Profile updated:', response.data);
+        this.isEditing = false;
       } catch (error) {
-        console.error('Error fetching popular repositories', error);
+        console.error('Error updating profile:', error);
       }
-    },
-    viewCommits(uuid) {
-      console.log(`Viewing commits for repository with UUID: ${uuid}`);
-      // Implement logic to view commits
-    },
-    async deleteRepository(uuid) {
-      try {
-        const token = localStorage.getItem('token');
-        console.log('Deleting repository with token:', token);
-        await axios.delete(`http://localhost:8000/api/v1/delete_repo`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          data: {
-            uuid: uuid,
-          },
-        });
-        console.log('Repository deleted successfully');
-        this.fetchPopularRepos(); // Refresh the list of repositories
-      } catch (error) {
-        console.error('Error deleting repository', error);
-      }
-    },
+    }
   },
   created() {
-    this.fetchUserDetails();
-    this.fetchPopularRepos();
-  },
+    this.fetchProfile();
+  }
 };
 </script>
 
 <style scoped>
-.avatar {
-  width: 150px;
-  height: 150px;
-  border: 3px solid #343a40;
-}
-
-.repo-card {
-  background-color: #fff;
-  border: 1px solid #ced4da;
-}
-
-.language-color {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  margin-right: 5px;
-}
-
-.language-color.JavaScript {
-  background-color: #f1e05a;
-}
-
-.language-color.HTML {
-  background-color: #e34c26;
-}
-
-.language-color.Python {
-  background-color: #3572A5;
-}
-
-.language-color.PHP {
-  background-color: #4F5D95;
+.container {
+  max-width: 600px;
 }
 </style>

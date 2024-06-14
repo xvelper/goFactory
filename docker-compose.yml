@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:12
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=git
+      - POSTGRES_USER=git
+      - POSTGRES_PASSWORD=198771
+    volumes:
+      - C:\Users\user\Documents\volumes\pgdata:/var/lib/postgresql/data
+    networks:
+      - backend_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.entrypoints=https"
+      - "traefik.http.routers.backend.rule=Host(`api.xvelper.ru`)"
+      - "traefik.http.routers.backend.tls=true"
+      - "traefik.http.routers.backend.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.backend.service=api@internal"
+      - "traefik.http.services.frontend-secure.loadbalancer.server.port=8000"
+    environment:
+      - PROJECT_ROOT=/app/git
+      - GIT_BIN_PATH=/usr/bin/git
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=git
+      - DB_NAME=git
+      - DB_PASSWORD=198771
+    volumes:
+      - C:\Users\user\Documents\volumes\git:/app/git
+    depends_on:
+      - db
+    networks:
+      - backend_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.entrypoints=https"
+      - "traefik.http.routers.frontend.rule=Host(`xvelper.ru`)"
+      - "traefik.http.routers.frontend.tls=true"
+      - "traefik.http.routers.frontend.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.frontend.service=api@internal"
+      - "traefik.http.services.frontend-secure.loadbalancer.server.port=8080"
+    networks:
+      - frontend_network
+
+
+
+  traefik:
+    image: traefik:v2.2
+    container_name: traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - 80:80
+      - 443:443 
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/traefik.yml:/traefik.yml:ro
+      - ./data/custom/:/custom/:ro
+      - ./data/acme.json:/acme.json
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.entrypoints=https"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.xvelper.ru`)"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.routers.traefik.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.services.traefik-traefik.loadbalancer.server.port=888"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=admin:$$apr1$$qmochTQm$$YXm9s61LP7teu8HDfTwVh1"
+      - "traefik.http.routers.traefik.middlewares=traefik-auth"
+    networks:
+      - frontend_network
+      - backend_network
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  postgres-data:
+
+networks:
+  frontend_network:
+    driver: bridge
+  backend_network:
+    driver: bridge
+  app-network:
+    driver: bridge

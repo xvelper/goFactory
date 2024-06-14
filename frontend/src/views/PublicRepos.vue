@@ -28,11 +28,11 @@ export default {
   methods: {
     async fetchRepos() {
       try {
-        const response = await axios.get('http://localhost:8000/api/v1/public_repos');
+        const response = await axios.get('https://api.xvelper.ru/api/v1/public_repos');
         const repos = response.data;
 
         for (let repo of repos) {
-          const userResponse = await axios.post('http://localhost:8000/api/v1/user_details', { id: repo.OwnerID });
+          const userResponse = await axios.post('https://api.xvelper.ru/api/v1/user_details', { id: repo.OwnerID });
           repo.Username = userResponse.data.username;
         }
 

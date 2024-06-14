@@ -6,6 +6,7 @@ import UserRepos from '../views/UserRepos.vue';
 import PublicRepos from '../views/PublicRepos.vue';
 import UserProfile from '../views/UserProfile.vue';
 import MyRepositories from '@/views/MyRepositories.vue';
+import UserRepoContent from '../views/UserRepoContent.vue';
 
 const routes = [
   { path: '/', name: 'HomePage', component: HomePage },
@@ -15,6 +16,7 @@ const routes = [
   { path: '/public-repos', name: 'PublicRepos', component: PublicRepos },
   { path: '/profile', name: 'UserProfile', component: UserProfile },
   { path: '/my-repositories', name: 'MyRepositories', component: MyRepositories },
+  { path: '/repo-content/:repoId/', name: 'UserRepoContent', component: UserRepoContent},
 ];
 
 const router = createRouter({

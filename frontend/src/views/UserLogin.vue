@@ -35,13 +35,13 @@ export default {
   methods: {
     async login() {
       try {
-        const response = await axios.post('http://localhost:8000/api/v1/login', {
+        const response = await axios.post('https://api.xvelper.ru/api/v1/login', {
           username: this.username,
           password: this.password
         }, { withCredentials: true });
 
         localStorage.setItem('token', response.data.token);
-        const userDetails = await axios.get('http://localhost:8000/api/v1/user_details_jwt', { withCredentials: true });
+        const userDetails = await axios.get('https://api.xvelper.ru/api/v1/user_details_jwt', { withCredentials: true });
         localStorage.setItem('username', userDetails.data.username);
 
         window.dispatchEvent(new Event('storage')); // Dispatch event to notify about the change

@@ -47,6 +47,15 @@ type Permission struct {
 	UpdatedAt    time.Time
 }
 
+type Commit struct {
+	ID           uint   `gorm:"primaryKey"`
+	Hash         string `gorm:"uniqueIndex"`
+	Author       string
+	Date         string
+	Message      string
+	RepositoryID uint
+}
+
 var DB *gorm.DB
 
 func ConnectDatabase() {
@@ -57,7 +66,7 @@ func ConnectDatabase() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	err = DB.AutoMigrate(&User{}, &Repository{}, &Permission{})
+	err = DB.AutoMigrate(&User{}, &Repository{}, &Permission{}, &Commit{})
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}

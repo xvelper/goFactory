@@ -45,7 +45,7 @@ export default {
   methods: {
     async register() {
       try {
-        const response = await axios.post('http://localhost:8000/api/v1/register', {
+        const response = await axios.post('https://api.xvelper.ru/api/v1/register', {
           username: this.username,
           email: this.email,
           password: this.password,

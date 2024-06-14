@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"gitfactory/database"
 	"gitfactory/server"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -14,11 +15,26 @@ import (
 )
 
 type RepositoryRequest struct {
+	ID       string `json:"repo_id"`
 	RepoName string `json:"repo_name"`
 	IsPublic bool   `json:"is_public"`
 }
+
+type RepoContentRequest struct {
+	ID string `json:"repo_id"`
+}
+
+type RepoContentResponse struct {
+	Contents []string `json:"contents"`
+}
+
 type DeleteRepositoryRequest struct {
-	ID string `json:"id"`
+	ID      uint `json:"repo_id"`
+	OwnerID uint `json:"owner_id"`
+}
+
+type RepoCommitsRequest struct {
+	ID uint `json:"repo_id"`
 }
 
 type Commit struct {
@@ -26,6 +42,61 @@ type Commit struct {
 	Author  string `json:"author"`
 	Date    string `json:"date"`
 	Message string `json:"message"`
+}
+
+func ViewRepoContents(w http.ResponseWriter, r *http.Request) {
+	// Авторизация запроса
+	claims, err := authorizeRequest(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
+	// Получение пользователя из базы данных
+	var user database.User
+	result := database.DB.Where("username = ?", claims.Username).First(&user)
+	if result.Error != nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+
+	// Декодирование запроса
+	var requestBody RepoContentRequest
+	err = json.NewDecoder(r.Body).Decode(&requestBody)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Получение репозитория из базы данных
+	var repo database.Repository
+	result = database.DB.Where("id = ?", requestBody.ID).First(&repo)
+	if result.Error != nil {
+		http.Error(w, "Repository not found", http.StatusNotFound)
+		return
+	}
+
+	branch := "HEAD" // Используется ветка HEAD, можно сделать динамическим
+
+	log.Printf(repo.Path)
+
+	// Выполнение команды git для получения содержимого репозитория
+	cmd := exec.Command("git", "ls-tree", "-r", branch, "--name-only")
+	cmd.Dir = repo.Path
+	output, err := cmd.Output()
+	if err != nil {
+		http.Error(w, "Failed to execute git command", http.StatusInternalServerError)
+		return
+	}
+
+	files := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	response := RepoContentResponse{
+		Contents: files,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 func CreateRepository(w http.ResponseWriter, r *http.Request) {
@@ -90,17 +161,16 @@ func DeleteRepository(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var deleteReq struct {
-		ID uint `json:"id"`
-	}
+	var deleteReq DeleteRepositoryRequest
 	err = json.NewDecoder(r.Body).Decode(&deleteReq)
 	if err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 
+	log.Printf(claims.Id)
 	var repo database.Repository
-	result := database.DB.Where("id = ? AND owner_id = ?", deleteReq.ID, claims.Id).First(&repo)
+	result := database.DB.Where("id = ? AND owner_id = ?", deleteReq.ID, deleteReq.OwnerID).First(&repo)
 	if result.Error != nil {
 		http.Error(w, "Repository not found or unauthorized", http.StatusNotFound)
 		return
@@ -129,14 +199,13 @@ func GetRepositoryCommits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var repoReq DeleteRepositoryRequest
+	var repoReq RepoCommitsRequest
 	err = json.NewDecoder(r.Body).Decode(&repoReq)
 	if err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 
-	// Получение пользователя из базы данных
 	var user database.User
 	result := database.DB.Where("username = ?", claims.Username).First(&user)
 	if result.Error != nil {
@@ -144,42 +213,48 @@ func GetRepositoryCommits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Получение репозитория по имени и владельцу
 	var repo database.Repository
-	result = database.DB.Where("id = ? AND owner_id = ?", repoReq.ID, claims.Id).First(&repo)
+	result = database.DB.Where("id = ? AND owner_id = ?", repoReq.ID, user.ID).First(&repo)
 	if result.Error != nil {
 		http.Error(w, "Repository not found", http.StatusNotFound)
 		return
 	}
 
-	// Выполнение команды git log для получения истории коммитов
-	repoPath := filepath.Join(repo.Path)
-	cmd := exec.Command("git", "-C", repoPath, "log", "--pretty=format:%H|%an|%ad|%s", "--date=short")
+	cmd := exec.Command("git", "-C", repo.Path, "log", "--pretty=format:%H|%an|%ad|%s", "--date=short")
 	output, err := cmd.Output()
 	if err != nil {
 		http.Error(w, "Error fetching git log", http.StatusInternalServerError)
 		return
 	}
 
-	// Парсинг истории коммитов
-	var commits []Commit
+	var commits []database.Commit
 	lines := strings.Split(string(output), "\n")
 	for _, line := range lines {
 		parts := strings.Split(line, "|")
 		if len(parts) < 4 {
 			continue
 		}
-		commit := Commit{
-			Hash:    parts[0],
-			Author:  parts[1],
-			Date:    parts[2],
-			Message: parts[3],
+		commit := database.Commit{
+			Hash:         parts[0],
+			Author:       parts[1],
+			Date:         parts[2],
+			Message:      parts[3],
+			RepositoryID: repo.ID,
 		}
 		commits = append(commits, commit)
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(commits)
+	// Сохранение коммитов в базу данных
+	for _, commit := range commits {
+		database.DB.FirstOrCreate(&commit, database.Commit{Hash: commit.Hash})
+	}
+
+	// Чтение коммитов из базы данных и отправка на frontend
+	var dbCommits []database.Commit
+	database.DB.Where("repository_id = ?", repo.ID).Find(&dbCommits)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(dbCommits)
 }
 
 func GetRepositoriesByUser(w http.ResponseWriter, r *http.Request) {

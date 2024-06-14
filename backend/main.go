@@ -40,11 +40,14 @@ func main() {
 	mux.HandleFunc("/api/v1/user_repos", controllers.GetUserRepositories)
 	mux.HandleFunc("/api/v1/user_details_jwt", controllers.GetUserDetailsJWT)
 	mux.HandleFunc("/api/v1/user_details", controllers.GetUserDetails)
+	mux.HandleFunc("/api/v1/view_contents", controllers.ViewRepoContents)
+	mux.HandleFunc("/api/v1/user_profile", controllers.GetUserProfile)
+	mux.HandleFunc("/api/v1/update_profile", controllers.UpdateUserProfile)
 	mux.Handle("/", controllers.BasicAuth(http.HandlerFunc(server.Handler())))
 
 	// Настройка CORS
-	originsOk := handlers.AllowedOrigins([]string{"http://localhost:8080"})
-	headersOk := handlers.AllowedHeaders([]string{"Authorization", "Content-Type"})
+	originsOk := handlers.AllowedOrigins([]string{"https://xvelper.ru"})
+	headersOk := handlers.AllowedHeaders([]string{"Authorization", "Content-Type", "Access-Control-Allow-Origin"})
 	methodsOk := handlers.AllowedMethods([]string{"GET", "HEAD", "POST", "PUT", "OPTIONS", "DELETE"})
 	credentialsOk := handlers.AllowCredentials()
 

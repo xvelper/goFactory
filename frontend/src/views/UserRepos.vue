@@ -21,7 +21,7 @@
     async created() {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:8000/api/v1/user_repos', {
+        const response = await axios.get('https://api.xvelper.ru/api/v1/user_repos', {
           headers: {
             Authorization: `Bearer ${token}`,
           },

@@ -14,6 +14,19 @@ type UserResponse struct {
 	IsAdmin  bool   `json:"is_admin"`
 }
 
+type UserProfileRequest struct {
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+	Email     string `json:"email"`
+}
+
+type UserProfileResponse struct {
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+	Email     string `json:"email"`
+	Password  string `json:"password"`
+}
+
 type UserRequest struct {
 	ID uint `json:"id"`
 }
@@ -94,4 +107,64 @@ func GetUserRepositories(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(repositories)
+}
+
+func GetUserProfile(w http.ResponseWriter, r *http.Request) {
+	claims, err := authorizeRequest(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
+	var user database.User
+	result := database.DB.Where("username = ?", claims.Username).First(&user)
+	if result.Error != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	userProfile := UserProfileRequest{
+		FirstName: user.Firstname,
+		LastName:  user.Lastname,
+		Email:     user.Email,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(userProfile)
+}
+
+// UpdateUserProfile обработчик для обновления профиля пользователя
+func UpdateUserProfile(w http.ResponseWriter, r *http.Request) {
+	claims, err := authorizeRequest(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
+	var profileReq UserProfileResponse
+	err = json.NewDecoder(r.Body).Decode(&profileReq)
+	if err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	var user database.User
+	result := database.DB.Where("username = ?", claims.Username).First(&user)
+	if result.Error != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	user.Firstname = profileReq.FirstName
+	user.Lastname = profileReq.LastName
+	user.Email = profileReq.Email
+
+	if profileReq.Password != "" {
+		user.Password = profileReq.Password
+	}
+
+	database.DB.Save(&user)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Profile updated successfully"})
 }
